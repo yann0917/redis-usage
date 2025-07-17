@@ -1,0 +1,109 @@
+---
+alwaysApply: true
+---
+
+# Rule for Writing Redis Usage Code Examples (Go 1.20+, go-redis)
+
+1. General Requirements
+All code must be compatible with Go 1.20 or higher.
+The Redis client library must be go-redis.
+Code examples must be production-ready, robust, and follow best practices.
+Each code example must include comprehensive error handling and resource management.
+All code comments must be written in Chinese for clarity and team communication.
+Each code example must be accompanied by corresponding test code to ensure correctness and reliability.
+Code should be easy to read, modular, and maintainable.
+2. Code Structure
+Each usage scenario should be implemented in a separate Go file or function, with a clear and descriptive name.
+All necessary imports must be included explicitly.
+Connection configuration (address, password, DB, etc.) should be parameterized and not hard-coded, except for demonstration purposes.
+Redis client initialization and closure must be handled properly (e.g., using defer rdb.Close()).
+Use context.Context for all Redis operations to support cancellation and timeout.
+All returned errors must be checked and handled appropriately.
+Use idiomatic Go code style (gofmt, golint, etc.).
+3. Code Comments
+All public functions, important logic, and tricky parts must have Chinese comments explaining their purpose and usage.
+Comments should be concise, accurate, and helpful for understanding the code.
+4. Test Code
+Each code example must have a corresponding test file (e.g., xxx_test.go).
+Tests should cover normal cases, edge cases, and error cases.
+Use Go’s standard testing package (testing).
+Tests must be self-contained and not depend on external state.
+If possible, use a local or in-memory Redis instance for testing, and clean up data after each test.
+5. Coverage Scope
+The code examples must cover (but are not limited to) the following Redis usage scenarios:
+Basic Operations
+String, Hash, List, Set, Sorted Set (CRUD)
+Key expiration, TTL, deletion
+Common Operations
+Key pattern matching, scanning
+Persistence, backup, and restore (if applicable)
+Transactions
+MULTI/EXEC, WATCH, error handling in transactions
+Pipeline
+Batch operations using pipeline, error aggregation
+Publish/Subscribe
+Pub/Sub model, message publishing and receiving, graceful shutdown
+Cluster
+Connecting to Redis Cluster, slot management, failover handling
+Rate Limiting
+Implementing token bucket or leaky bucket algorithms using Redis
+Bloom Filter
+Using Redis modules (e.g., RedisBloom) or custom implementation for Bloom filters
+Other Advanced Scenarios (optional, if needed)
+Lua scripting, HyperLogLog, Geo, Bitmaps, Streams, etc.
+6. Quality and Production Readiness
+All code must be robust, handle errors gracefully, and avoid resource leaks.
+Avoid using deprecated APIs or features.
+Prefer context-aware APIs and avoid blocking calls.
+Use connection pooling and proper client options for performance.
+Ensure thread safety and avoid data races.
+All code must be formatted and linted.
+7. Example Template
+Below is a minimal template for a code example (for reference):
+
+```go
+package example
+
+import (
+    "context"
+    "fmt"
+    "github.com/redis/go-redis/v9"
+    "time"
+)
+
+// 初始化 Redis 客户端
+func NewRedisClient(addr, password string, db int) *redis.Client {
+    // 创建 Redis 客户端
+    rdb := redis.NewClient(&redis.Options{
+        Addr:     addr,
+        Password: password, // 没有密码则留空
+        DB:       db,       // 默认数据库为 0
+    })
+    return rdb
+}
+
+func ExampleSetGet() error {
+    ctx := context.Background()
+    rdb := NewRedisClient("localhost:6379", "", 0)
+    defer rdb.Close()
+
+    // 设置 key 为 "foo"，值为 "bar"，过期时间为 10 秒
+    err := rdb.Set(ctx, "foo", "bar", 10*time.Second).Err()
+    if err != nil {
+        // 处理错误
+        return err
+    }
+
+    // 获取 key 为 "foo" 的值
+    val, err := rdb.Get(ctx, "foo").Result()
+    if err != nil {
+        // 处理错误
+        return err
+    }
+    fmt.Println("foo:", val)
+    return nil
+}
+```
+
+8. Documentation
+Each code example must include a brief description (in English or Chinese) at the top, explaining the scenario and usage.
