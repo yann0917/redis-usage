@@ -142,6 +142,44 @@ func (r *RedisManager) Set(ctx context.Context, key, value string, expiration ti
 	return nil
 }
 
+// SetNX 仅在键不存在时设置字符串键值对（原子操作）
+// 常用于分布式锁、防重复提交等场景
+// 参数：
+//   - ctx: 上下文，用于控制超时和取消
+//   - key: 键名
+//   - value: 值
+//   - expiration: 过期时间，0 表示永不过期
+//
+// 返回：
+//   - bool: 是否设置成功，true 表示键不存在且设置成功，false 表示键已存在
+//   - error: 操作失败时返回错误
+func (r *RedisManager) SetNX(ctx context.Context, key, value string, expiration time.Duration) (bool, error) {
+	success, err := r.client.SetNX(ctx, key, value, expiration).Result()
+	if err != nil {
+		return false, fmt.Errorf("SetNX 键 %s 失败: %w", key, err)
+	}
+	return success, nil
+}
+
+// SetXX 仅在键存在时设置字符串键值对（原子操作）
+// 与 SetNX 相对，用于更新已存在的键
+// 参数：
+//   - ctx: 上下文，用于控制超时和取消
+//   - key: 键名
+//   - value: 值
+//   - expiration: 过期时间，0 表示永不过期
+//
+// 返回：
+//   - bool: 是否设置成功，true 表示键存在且设置成功，false 表示键不存在
+//   - error: 操作失败时返回错误
+func (r *RedisManager) SetXX(ctx context.Context, key, value string, expiration time.Duration) (bool, error) {
+	success, err := r.client.SetXX(ctx, key, value, expiration).Result()
+	if err != nil {
+		return false, fmt.Errorf("SetXX 键 %s 失败: %w", key, err)
+	}
+	return success, nil
+}
+
 // Get 获取字符串值
 // 参数：
 //   - ctx: 上下文，用于控制超时和取消

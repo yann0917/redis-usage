@@ -174,6 +174,147 @@ func TestRedisManager_Incr(t *testing.T) {
 	}
 }
 
+func TestRedisManager_SetNX(t *testing.T) {
+	ctx, prefix := setupTest(t, "setnx")
+
+	key := testKey(prefix, "setnx")
+	value1 := "first_value"
+	value2 := "second_value"
+
+	// 测试设置不存在的键，应该成功
+	success1, err := globalManager.SetNX(ctx, key, value1, time.Minute)
+	if err != nil {
+		t.Errorf("SetNX 操作失败: %v", err)
+	}
+	if !success1 {
+		t.Error("期望 SetNX 成功，但返回 false")
+	}
+
+	// 验证值已设置
+	result, err := globalManager.Get(ctx, key)
+	if err != nil {
+		t.Errorf("获取值失败: %v", err)
+	}
+	if result != value1 {
+		t.Errorf("期望值 %s，实际值 %s", value1, result)
+	}
+
+	// 测试设置已存在的键，应该失败
+	success2, err := globalManager.SetNX(ctx, key, value2, time.Minute)
+	if err != nil {
+		t.Errorf("SetNX 操作失败: %v", err)
+	}
+	if success2 {
+		t.Error("期望 SetNX 失败，但返回 true")
+	}
+
+	// 验证值未被修改
+	result, err = globalManager.Get(ctx, key)
+	if err != nil {
+		t.Errorf("获取值失败: %v", err)
+	}
+	if result != value1 {
+		t.Errorf("期望值 %s，实际值 %s", value1, result)
+	}
+}
+
+func TestRedisManager_SetXX(t *testing.T) {
+	ctx, prefix := setupTest(t, "setxx")
+
+	key := testKey(prefix, "setxx")
+	value1 := "initial_value"
+	value2 := "updated_value"
+
+	// 测试设置不存在的键，应该失败
+	success1, err := globalManager.SetXX(ctx, key, value1, time.Minute)
+	if err != nil {
+		t.Errorf("SetXX 操作失败: %v", err)
+	}
+	if success1 {
+		t.Error("期望 SetXX 失败，但返回 true")
+	}
+
+	// 验证键不存在
+	_, err = globalManager.Get(ctx, key)
+	if err == nil {
+		t.Error("期望键不存在，但获取成功")
+	}
+
+	// 先使用 Set 创建键
+	if err := globalManager.Set(ctx, key, value1, time.Minute); err != nil {
+		t.Errorf("设置初始值失败: %v", err)
+	}
+
+	// 测试更新已存在的键，应该成功
+	success2, err := globalManager.SetXX(ctx, key, value2, time.Minute)
+	if err != nil {
+		t.Errorf("SetXX 操作失败: %v", err)
+	}
+	if !success2 {
+		t.Error("期望 SetXX 成功，但返回 false")
+	}
+
+	// 验证值已更新
+	result, err := globalManager.Get(ctx, key)
+	if err != nil {
+		t.Errorf("获取值失败: %v", err)
+	}
+	if result != value2 {
+		t.Errorf("期望值 %s，实际值 %s", value2, result)
+	}
+}
+
+func TestRedisManager_SetNX_DistributedLock(t *testing.T) {
+	ctx, prefix := setupTest(t, "setnx_lock")
+
+	lockKey := testKey(prefix, "lock")
+	lockValue := "lock_holder_1"
+	lockDuration := 5 * time.Second
+
+	// 模拟分布式锁场景
+	// 第一个进程获取锁
+	acquired, err := globalManager.SetNX(ctx, lockKey, lockValue, lockDuration)
+	if err != nil {
+		t.Errorf("获取分布式锁失败: %v", err)
+	}
+	if !acquired {
+		t.Error("期望获取锁成功")
+	}
+
+	// 第二个进程尝试获取同一个锁，应该失败
+	otherValue := "lock_holder_2"
+	acquired2, err := globalManager.SetNX(ctx, lockKey, otherValue, lockDuration)
+	if err != nil {
+		t.Errorf("尝试获取已存在锁失败: %v", err)
+	}
+	if acquired2 {
+		t.Error("期望获取锁失败，但成功了")
+	}
+
+	// 验证锁的值仍是第一个进程设置的
+	currentValue, err := globalManager.Get(ctx, lockKey)
+	if err != nil {
+		t.Errorf("获取锁值失败: %v", err)
+	}
+	if currentValue != lockValue {
+		t.Errorf("期望锁值 %s，实际值 %s", lockValue, currentValue)
+	}
+
+	// 手动释放锁（删除键）
+	if err := globalManager.Del(ctx, lockKey); err != nil {
+		t.Errorf("释放锁失败: %v", err)
+	}
+
+	// 现在第二个进程应该能获取锁
+	acquired3, err := globalManager.SetNX(ctx, lockKey, otherValue, lockDuration)
+	if err != nil {
+		t.Errorf("重新获取锁失败: %v", err)
+	}
+	if !acquired3 {
+		t.Error("期望重新获取锁成功")
+	}
+}
+
 // =============================================================================
 // 哈希操作测试
 // =============================================================================
@@ -647,6 +788,18 @@ func BenchmarkRedisManager_HSet(b *testing.B) {
 		field := "field_" + string(rune(i))
 		if err := globalManager.HSet(ctx, key, field, "benchmark_value"); err != nil {
 			b.Errorf("设置哈希字段失败: %v", err)
+		}
+	}
+}
+
+func BenchmarkRedisManager_SetNX(b *testing.B) {
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := "bench:setnx:" + string(rune(i))
+		if _, err := globalManager.SetNX(ctx, key, "benchmark_value", time.Minute); err != nil {
+			b.Errorf("SetNX 操作失败: %v", err)
 		}
 	}
 }

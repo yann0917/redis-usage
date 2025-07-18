@@ -44,6 +44,8 @@ type RedisOperator interface {
 
 	// 字符串操作
 	Set(ctx context.Context, key, value string, expiration time.Duration) error
+	SetNX(ctx context.Context, key, value string, expiration time.Duration) (bool, error)
+	SetXX(ctx context.Context, key, value string, expiration time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
 	Incr(ctx context.Context, key string) (int64, error)
 
